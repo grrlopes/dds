@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 from leituraproc import Leituraproc
 
 class Executa(Leituraproc):

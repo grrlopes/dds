@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
+from time import strftime
+import base64
 import yaml
 from credencial import Credencial
 from pyremedy import ARS, ARSError
@@ -14,6 +16,7 @@ class Leituraproc(Credencial):
         self.senha = None
         self.cred = None
         self.conexao = None
+        self.resultado = None
         self.query = None
 
     def _conf(self):
@@ -29,38 +32,62 @@ class Leituraproc(Credencial):
                         self.rede = self.cred[nivel][valor]
                     elif valor == 'porta':
                         self.porta = self.cred[nivel][valor]
+                    elif valor == 'query':
+                        self.query = self.cred[nivel][valor]
+                        print(self.query)
         else:
             print('não achei')
 
     def campos(self):
+        '''
+            Lista todos os attrs possíveis, com a finalidade
+            de facilitar o arranjo de query.
+        '''
         for campo in self.conexao.fields('CHG:Change'):
             print(campo)
 
     def _schema(self):
+        ''' Lista os schemas '''
         for schema in self.conexao.schemas():
             print(schema)
 
-    #query(schema, qualifier, fields, offset=0, limit=0)
     def filtros(self):
-        self.conexao.query(
+        query = """ 'Status*' == "Resolved" AND 'Region' = "Santander Brasil" """
+        lista = ['Change ID+', 'Summary', 'Status', 'Department', 'Region', \
+        'Description', 'Requester Login Name+', 'Requester ID+', 'Requester Name+']
+        inicio = strftime("%a, %d %b %Y %H:%M:%S +0000")
+        self.resultado = self.conexao.query(
             schema='CHG:Change',
-            qualifier=qual,
-            fields=(campos)
+            qualifier=self.query,
+            fields=lista,
+            offset=0,
+            limit=10
         )
+        for base_chave, base_valor in self.resultado:
+            for chave, valor in base_valor.items():
+                print('{}:{}'.format(chave, valor))
+            print(' ###############################\n ')
+        print(inicio+' - '+strftime("%a, %d %b %Y %H:%M:%S +0000"))
 
     def chamador(self):
         try:
             self._conf()
-            self.conexao = ARS(server=self.rede, port=self.porta, \
-             user=self.login, password=self.senha)
+            self.conexao = ARS(server=base64.b64decode(self.rede), port=self.porta, \
+             user=base64.b64decode(self.login), password=base64.b64decode(self.senha))
+            self.filtros()
         except ARSError:
             for message_number, message_text, appended_text in self.conexao.errors:
                 if appended_text:
                     print(
-                        'Message {}: {} ({})'.format(message_number, message_text, appended_text)
+                        '\nMessage {}: {} ({})'.format(message_number, message_text, appended_text)
+                        +'\nVerique conexao ou query'
                     )
                 else:
-                    print('Message {}: {}'.format(message_number, message_text))
+                    print(
+                        'Message {}: {}'.format(message_number, message_text)
+                        +'\nVerique configuracao de conexao'
+                    )
         finally:
-            self.conexao.terminate()
-            print("Terminado")
+            if self.conexao is not None:
+                self.conexao.terminate()
+            print("\nExecução finalizada\n")
